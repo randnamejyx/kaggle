@@ -13,6 +13,7 @@ from sklearn.metrics import f1_score, precision_score, recall_score
 from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.svm import LinearSVC
 
+from prediction_cache import load_score_cache, save_score_cache, score_cache_signature
 from train_optimized import SEED, best_threshold, load_csv, nb_ratio
 
 
@@ -55,7 +56,9 @@ def metric(truth, scores):
 
 
 def normalized(scores, mean, standard_deviation):
-    return (scores - mean) / standard_deviation
+    # Constant OOF scores have no variance; keep them centered and finite.
+    scale = standard_deviation if standard_deviation != 0 else 1.0
+    return (scores - mean) / scale
 
 
 def search_blends(labels, oof, test):
@@ -134,14 +137,16 @@ def train(args):
     names = [spec[0] for spec in SPECS] + ["combined_nb_c05"]
     oof = {name: np.zeros(len(train_data)) for name in names}
     test_scores = {name: np.zeros(len(test_data)) for name in names}
-    existing_oof = np.load(args.base / "oof_scores.npy")
-    existing_test = np.load(args.base / "test_scores.npy")
+    signature = score_cache_signature(train_data, test_data, args.text_column, splits)
+    existing_oof, existing_test = load_score_cache(args.base, signature)
     oof["combined_nb_c05"] = existing_oof
     test_scores["combined_nb_c05"] = existing_test
 
     for fold, (fit_indices, valid_indices) in enumerate(splits, start=1):
         print(f"Fold {fold}/5: loading vectorizers and transforming text...", flush=True)
         bundle = joblib.load(args.base / f"model_fold_{fold}.joblib")
+        if bundle.get("score_cache_signature") != signature:
+            raise ValueError(f"{args.base}: fold model does not match prediction cache; rerun CV training")
         word = bundle["word_vectorizer"]
         char = bundle["char_vectorizer"]
         word_fit = word.transform(texts.iloc[fit_indices])
@@ -174,8 +179,7 @@ def train(args):
     submission = pd.DataFrame({"id": test_data["id"], "label": predictions})
     args.output.mkdir(parents=True, exist_ok=True)
     submission.to_csv(args.output / "submission.csv", index=False)
-    np.save(args.output / "oof_scores.npy", blended_oof)
-    np.save(args.output / "test_scores.npy", blended_test)
+    save_score_cache(args.output, blended_oof, blended_test, signature)
     metrics = {
         "seed": SEED,
         "method": "five_fold_text_only_diverse_svm_blend",

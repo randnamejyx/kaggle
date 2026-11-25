@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from prediction_cache import load_score_cache, save_score_cache, score_cache_signature
 from scipy.sparse import hstack
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import StratifiedGroupKFold
@@ -59,8 +60,10 @@ def train(args):
     names = [spec[0] for spec in SPECS] + ["previous_combined_nb"]
     oof = {name: np.zeros(len(train_data)) for name in names}
     test_scores = {name: np.zeros(len(test_data)) for name in names}
-    oof["previous_combined_nb"] = np.load(args.previous / "oof_scores.npy")
-    test_scores["previous_combined_nb"] = np.load(args.previous / "test_scores.npy")
+    signature = score_cache_signature(train_data, test_data, args.text_column, splits)
+    oof["previous_combined_nb"], test_scores["previous_combined_nb"] = load_score_cache(
+        args.previous, signature
+    )
 
     for fold, (fit_indices, valid_indices) in enumerate(splits, start=1):
         print(f"Fold {fold}/5: fitting word13 + char_wb26 TF-IDF...", flush=True)
@@ -103,8 +106,7 @@ def train(args):
     submission = pd.DataFrame({"id": test_data["id"], "label": predictions})
     args.output.mkdir(parents=True, exist_ok=True)
     submission.to_csv(args.output / "submission.csv", index=False)
-    np.save(args.output / "oof_scores.npy", blended_oof)
-    np.save(args.output / "test_scores.npy", blended_test)
+    save_score_cache(args.output, blended_oof, blended_test, signature)
     metrics = {
         "seed": SEED,
         "method": "five_fold_text_only_word13_charwb26_blend",

@@ -55,18 +55,23 @@ def score_model(model, loader, device, use_amp):
             )
             with torch.cuda.amp.autocast(enabled=use_amp):
                 logits = model(input_ids=input_ids, attention_mask=attention_mask).logits
-            scores.append(torch.softmax(logits, dim=1)[:, 1].cpu().numpy())
+            scores.append(torch.softmax(logits.float(), dim=1)[:, 1].cpu().numpy())
     return np.concatenate(scores)
 
 
 def best_f1(labels, scores):
     order = np.argsort(-scores)
+    sorted_scores = scores[order]
     sorted_labels = labels[order]
     true_positives = np.cumsum(sorted_labels)
     predicted_positives = np.arange(1, len(labels) + 1)
     positives = int(labels.sum())
-    f1 = 2 * true_positives / np.maximum(predicted_positives + positives, 1)
-    index = int(np.argmax(f1))
+    # A >= threshold decision includes every sample with the same score.
+    candidates = np.flatnonzero(np.r_[sorted_scores[:-1] != sorted_scores[1:], True])
+    f1 = 2 * true_positives[candidates] / np.maximum(
+        predicted_positives[candidates] + positives, 1
+    )
+    index = int(candidates[np.argmax(f1)])
     threshold = float(scores[order[index]])
     predictions = scores >= threshold
     tp = int(((predictions == 1) & (labels == 1)).sum())

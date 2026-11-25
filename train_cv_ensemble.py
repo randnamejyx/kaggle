@@ -11,6 +11,7 @@ from sklearn.metrics import f1_score, precision_score, recall_score
 from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.svm import LinearSVC
 
+from prediction_cache import save_score_cache, score_cache_signature
 from train_optimized import (
     SEED,
     best_threshold,
@@ -38,13 +39,14 @@ def train(args):
     splitter = StratifiedGroupKFold(
         n_splits=args.folds, shuffle=True, random_state=SEED
     )
+    splits = list(splitter.split(texts, labels, groups=groups))
+    signature = score_cache_signature(train_data, test_data, args.text_column, splits)
+    (args.output / "score_cache.json").unlink(missing_ok=True)
     oof_scores = np.zeros(len(train_data), dtype=float)
     test_scores = np.zeros(len(test_data), dtype=float)
     fold_results = []
 
-    for fold, (fit_indices, valid_indices) in enumerate(
-        splitter.split(texts, labels, groups=groups), start=1
-    ):
+    for fold, (fit_indices, valid_indices) in enumerate(splits, start=1):
         print(f"Fold {fold}/{args.folds}: fitting TF-IDF...", flush=True)
         word, char, fit_matrix = fit_features(texts.iloc[fit_indices])
         valid_matrix = transform_features(word, char, texts.iloc[valid_indices])
@@ -77,6 +79,7 @@ def train(args):
                 "classifier": classifier,
                 "nb_ratio": ratio,
                 "text_column": args.text_column,
+                "score_cache_signature": signature,
             },
             args.output / f"model_fold_{fold}.joblib",
             compress=3,
@@ -87,8 +90,7 @@ def train(args):
     test_predictions = (test_scores >= threshold).astype(int)
     submission = pd.DataFrame({"id": test_data["id"], "label": test_predictions})
     submission.to_csv(args.output / "submission.csv", index=False)
-    np.save(args.output / "oof_scores.npy", oof_scores)
-    np.save(args.output / "test_scores.npy", test_scores)
+    save_score_cache(args.output, oof_scores, test_scores, signature)
     metrics = {
         "seed": SEED,
         "method": "five_fold_text_only_tfidf_nb_svm_ensemble",
