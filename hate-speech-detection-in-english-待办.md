@@ -16,6 +16,7 @@
 
 ## 提交结果
 
+- 算法正确性修复后重跑 BERTweet：Kaggle submission ref `58875972`，状态 `COMPLETE`，public F1 `0.9523`，private F1 `0.9560`；新旧 CSV 完全一致。修复内容与各模型重跑记录见 [`docs/algorithm-fixes.md`](docs/algorithm-fixes.md)。
 - 正常文本模型第四轮（当前最佳）：`vinai/bertweet-base` 在 RTX 3090 上微调，训练特征仅为 `text`。第 2 轮在单次分层验证划分上达到 F1 `0.9534`；恢复该轮权重后，用全量训练数据追加一轮。Kaggle submission ref `58832772`，public F1 `0.9523`，private F1 `0.9560`。产物位于 `artifacts/optimized_bertweet/`。
 - 正常文本模型第三轮：在 RTX 3090 上对通用 `microsoft/MiniLM-L12-H384-uncased` 做监督微调，仅使用 `text`，验证 F1 `0.9023`。Kaggle submission ref `58832174`，public F1 `0.9075`，private F1 `0.9063`。产物位于 `artifacts/optimized_transformer/`。
 - 正常文本模型第二轮：5 折分组交叉验证 TF-IDF + NB-SVM 集成，仅使用 `text`，折外 F1 `0.8898`。Kaggle submission ref `58830937`，public F1 `0.8950`，private F1 `0.8846`。产物位于 `artifacts/optimized_cv/`。

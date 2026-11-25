@@ -12,7 +12,15 @@
 
 缓存检查用于避免将分数配到错误的标签或测试 ID。它不会把 ID 加入模型特征。为保持行为明确，输入顺序改变时拒绝旧缓存，要求重新运行基础五折模型。
 
-本地运行 `python -m pytest -q`，16 项测试通过：同分阈值与可实现阈值穷举结果一致；常量融合候选不再产生 NaN；样本顺序、内容、标签、ID 或折划分变化时拒绝旧缓存；匹配缓存可完成两种融合并导出 CSV。测试中的五折训练和融合使用合成数据；Transformer 仅执行真实的 NumPy 阈值函数。由于本地缺少原数据及 PyTorch，尚未运行真实数据的微调、GPU 推理或 Kaggle 评分，不能据此认定比赛成绩提升。
+原分支开发环境运行 `python -m pytest -q`，16 项测试通过：同分阈值与可实现阈值穷举结果一致；常量融合候选不再产生 NaN；样本顺序、内容、标签、ID 或折划分变化时拒绝旧缓存；匹配缓存可完成两种融合并导出 CSV。测试中的五折训练和融合使用合成数据；Transformer 仅执行真实的 NumPy 阈值函数。原分支提交时尚未运行真实数据的微调、GPU 推理或 Kaggle 评分；下文记录在原 GPU 服务器上的完整重跑。
+
+## 原数据重跑与 Kaggle 验证（2026 年 11 月 25 日）
+
+- 在 `fix/algorithm-score-correctness` 分支上运行 `python -m pytest -q`，16 项测试通过。
+- 按下文原参数在 RTX 3090 上重跑 BERTweet，输出至 `artifacts/bertweet_algorithm_fixed/`。最佳仍为第 2 轮，验证 F1 为 `0.9534492428491307`；修复后的阈值为 `0.4877507984638214`。新 `test_scores.npy` 使用 float32，旧文件使用 float16。
+- 按依赖顺序重跑五折 NB-SVM、普通融合和 `char_wb` 融合，分别输出至 `artifacts/cv_algorithm_fixed/`、`artifacts/blend_algorithm_fixed/`、`artifacts/charwb_algorithm_fixed/`。三组 OOF F1 分别为 `0.8898388688`、`0.8921098518`、`0.8934506354`；缓存签名检查通过。
+- 四份重跑后的 `submission.csv` 均与各自旧版逐字节相同，测试集预测标签变化数均为 `0`。本次修复提高了阈值计算精度和缓存复用校验，没有改变最终预测。
+- 提交 `artifacts/bertweet_algorithm_fixed/submission.csv` 至 Kaggle：submission ref `58875972`，状态 `COMPLETE`，public F1 `0.9523`，private F1 `0.9560`。这与旧版 BERTweet 提交 `58832772` 的两项分数相同。
 
 ## 验证与最终 CSV 的关系
 
