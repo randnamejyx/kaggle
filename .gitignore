@@ -1,0 +1,22 @@
+# 模型权重 / 训练产物
+artifacts/
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.h5
+*.onnx
+
+# 数据与缓存
+data/
+*.csv
+*.zip
+*.parquet
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+venv/
+.venv/
